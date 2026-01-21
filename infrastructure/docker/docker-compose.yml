@@ -1,0 +1,62 @@
+# EchoRift Development Stack (without PostgreSQL - using host)
+# Usage: docker compose up -d
+
+services:
+  # Redis - Session storage, pub/sub for presence, caching
+  redis:
+    image: redis:7-alpine
+    container_name: echorift-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # NATS - Lightweight pub/sub for real-time messaging
+  nats:
+    image: nats:2-alpine
+    container_name: echorift-nats
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    command: 
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--http_port=8222"
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # LiveKit - WebRTC SFU for voice, video, screen sharing
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: echorift-livekit
+    network_mode: host
+    environment:
+      LIVEKIT_KEYS: "devkey: secret12345678901234567890123456"
+    command: --dev
+    restart: unless-stopped
+
+  # coturn - TURN/STUN server for NAT traversal
+  coturn:
+    image: coturn/coturn:latest
+    container_name: echorift-coturn
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  nats_data:

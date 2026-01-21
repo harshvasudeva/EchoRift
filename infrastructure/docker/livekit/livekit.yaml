@@ -1,0 +1,36 @@
+# LiveKit Server Configuration for Local Development
+port: 7880
+rtc:
+  port_range_start: 50000
+  port_range_end: 50100
+  tcp_port: 7881
+  use_external_ip: false
+  # For local development, enable TCP fallback
+  enable_loopback_candidate: true
+  
+# Disable strict security for local dev
+strict_acl: false
+
+# TURN configuration - connect to coturn
+turn:
+  enabled: true
+  domain: localhost
+  tls_port: 443
+  udp_port: 3478
+  external_tls: false
+  
+# Use built-in TURN for simple local setup
+turn_servers:
+  - host: host.docker.internal
+    port: 3478
+    protocol: udp
+    username: echorift
+    credential: echorift123
+
+# Keys (matches docker-compose and token server)
+keys:
+  devkey: secret12345678901234567890123456
+
+# Logging
+logging:
+  level: info

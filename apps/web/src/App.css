@@ -1,0 +1,367 @@
+/* Main App Layout */
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Empty State */
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.empty-state-content {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-normal);
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 15px;
+}
+
+/* Channel Sidebar */
+.channel-sidebar {
+  width: var(--channel-list-width);
+  height: 100%;
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+}
+
+.channel-sidebar-header {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--bg-tertiary);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-normal);
+  transition: background var(--transition-fast);
+}
+
+.channel-sidebar-header:hover {
+  background: var(--bg-mod-subtle);
+}
+
+.channel-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.user-panel {
+  background: var(--bg-accent);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-panel-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-panel-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-panel-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.user-panel-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.user-panel-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+.user-panel-btn:hover {
+  background: var(--bg-mod-strong);
+  color: var(--text-normal);
+}
+
+/* Chat Area */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  min-width: 0;
+}
+
+.chat-header {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--bg-tertiary);
+  box-shadow: var(--shadow-low);
+}
+
+.chat-header-icon {
+  color: var(--text-muted);
+}
+
+.chat-header-name {
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.chat-header-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-strong);
+  margin: 0 8px;
+}
+
+.chat-header-topic {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-header-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.chat-header-btn:hover {
+  color: var(--text-normal);
+}
+
+.chat-header-btn.active {
+  color: var(--text-normal);
+}
+
+/* Messages Area */
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 0;
+}
+
+.message {
+  display: flex;
+  gap: 16px;
+  padding: 2px 16px;
+  margin-top: 16px;
+}
+
+.message:hover {
+  background: var(--bg-mod-subtle);
+}
+
+.message.grouped {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.message-content-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.message-author {
+  font-weight: 500;
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.message-author:hover {
+  text-decoration: underline;
+}
+
+.message-timestamp {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.message-content {
+  color: var(--text-normal);
+  line-height: 1.375;
+  word-wrap: break-word;
+}
+
+/* Member List */
+.member-list {
+  width: var(--member-list-width);
+  height: 100%;
+  background: var(--bg-secondary);
+  overflow-y: auto;
+  padding: 24px 8px;
+}
+
+.member-list-section {
+  margin-bottom: 24px;
+}
+
+.member-list-header {
+  padding: 0 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.member-item:hover {
+  background: var(--bg-mod-subtle);
+}
+
+.member-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-item:hover .member-name {
+  color: var(--text-normal);
+}
+
+/* Voice Channel UI */
+.voice-channel-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.voice-participants {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 24px;
+  align-content: center;
+}
+
+.voice-participant {
+  aspect-ratio: 16 / 9;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+}
+
+.voice-participant.speaking {
+  box-shadow: 0 0 0 3px var(--color-online);
+}
+
+.voice-participant-name {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.voice-controls-bar {
+  padding: 16px 24px;
+  background: var(--bg-accent);
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.voice-control-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-mod-strong);
+  color: var(--text-normal);
+  transition: all var(--transition-normal);
+}
+
+.voice-control-btn:hover {
+  background: var(--bg-mod-subtle);
+}
+
+.voice-control-btn.active {
+  background: #F23F43;
+}
+
+.voice-control-btn.danger {
+  background: #F23F43;
+}
+
+.voice-control-btn.danger:hover {
+  background: #DA373C;
+}
