@@ -122,6 +122,22 @@ export function ChannelSidebar({
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {channel.name}
                 </span>
+                {voiceState.streamingParticipants?.[channel.id]?.length > 0 && (
+                    <span style={{
+                        background: '#ED4245',
+                        color: 'white',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '1px 4px',
+                        borderRadius: '4px',
+                        marginLeft: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                    }}>
+                        LIVE
+                    </span>
+                )}
             </div>
         );
     };
@@ -172,13 +188,17 @@ export function ChannelSidebar({
                 })}
             </div>
 
-            {/* Voice Status (if connected) */}
-            {voiceState.connected && (
-                <div style={{
-                    background: '#232428',
-                    padding: '8px',
-                    borderTop: '1px solid #1E1F22',
-                }}>
+            {/* Voice Status (if active) */}
+            {voiceState.active && (
+                <div
+                    onClick={() => voiceState.threadId && onChannelClick(voiceState.threadId)}
+                    style={{
+                        background: '#232428',
+                        padding: '8px',
+                        borderTop: '1px solid #1E1F22',
+                        cursor: 'pointer',
+                    }}
+                >
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -189,14 +209,26 @@ export function ChannelSidebar({
                             width: '8px',
                             height: '8px',
                             borderRadius: '50%',
-                            background: '#23A559',
+                            background: voiceState.status === 'connected' ? '#23A559' :
+                                voiceState.status === 'error' ? '#ED4245' :
+                                    '#FEE75C', // Yellow for connecting/reconnecting
                         }} />
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#23A559' }}>
-                                Voice Connected
+                            <div style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: voiceState.status === 'connected' ? '#23A559' :
+                                    voiceState.status === 'error' ? '#ED4245' :
+                                        '#FEE75C'
+                            }}>
+                                {voiceState.status === 'connected' ? 'Voice Connected' :
+                                    voiceState.status === 'connecting' ? 'Connecting...' :
+                                        voiceState.status === 'reconnecting' ? 'Reconnecting...' :
+                                            voiceState.status === 'error' ? 'Connection Failed' :
+                                                'Disconnected'}
                             </div>
                             <div style={{ fontSize: '12px', color: '#949BA4' }}>
-                                General Voice
+                                General Voice • Click to View
                             </div>
                         </div>
                     </div>

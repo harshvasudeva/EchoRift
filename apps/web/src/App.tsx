@@ -64,13 +64,35 @@ function App() {
       <NavSidebar />
       <ThreadList onJoinVoice={handleJoinVoice} />
 
-      {isInVoiceCall && voiceThread ? (
-        <VoiceRoom thread={voiceThread} onLeave={handleLeaveVoice} />
-      ) : activeThread ? (
-        <ChatView thread={activeThread} />
-      ) : (
-        <EmptyState />
-      )}
+      {/* Main Content Area */}
+      <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+
+        {/* Chat View - Rendered when active thread is NOT the voice room (or valid text channel) */}
+        {activeThread && (!isInVoiceCall || activeThread.id !== voiceState.threadId) && (
+          <div style={{ width: '100%', height: '100%' }}>
+            <ChatView thread={activeThread} />
+          </div>
+        )}
+
+        {/* Empty State - Rendered when no thread selected */}
+        {!activeThread && !isInVoiceCall && <EmptyState />}
+
+        {/* Voice Room - Always mounted when active to persist connection */}
+        {isInVoiceCall && voiceThread && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 10,
+            background: 'var(--bg-primary)',
+            // Hide if we are viewing another thread (minimized mode)
+            // In a real app we might show a mini player here or in sidebar
+            visibility: (activeThreadId === voiceState.threadId) ? 'visible' : 'hidden',
+            pointerEvents: (activeThreadId === voiceState.threadId) ? 'auto' : 'none'
+          }}>
+            <VoiceRoom thread={voiceThread} onLeave={handleLeaveVoice} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

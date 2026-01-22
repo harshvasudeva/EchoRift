@@ -37,12 +37,15 @@ export interface Message {
 }
 
 export interface VoiceState {
+    status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
     active: boolean;
     threadId: string | null;
     muted: boolean;
     deafened: boolean;
     videoOn: boolean;
     screenSharing: boolean;
+    error?: string;
+    streamingParticipants: Record<string, string[]>; // threadId -> list of identity names
 }
 
 // Theme Store
@@ -117,12 +120,14 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
     voiceState: {
+        status: 'disconnected',
         active: false,
         threadId: null,
         muted: false,
         deafened: false,
         videoOn: false,
         screenSharing: false,
+        streamingParticipants: {},
     },
     setVoiceState: (updates) => set((state) => ({
         voiceState: { ...state.voiceState, ...updates },

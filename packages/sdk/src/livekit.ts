@@ -7,11 +7,25 @@ import {
     RemoteParticipant,
     Track,
     ConnectionState,
-    createLocalTracks,
-    LocalTrack
+    RemoteAudioTrack,
+    RemoteTrack,
+    RemoteTrackPublication,
+    Participant,
+
 } from 'livekit-client';
 
-export type { Room, LocalParticipant, RemoteParticipant, Track };
+export {
+    Room,
+    RoomEvent,
+    LocalParticipant,
+    RemoteParticipant,
+    Track,
+    ConnectionState,
+    RemoteAudioTrack,
+    RemoteTrack,
+    RemoteTrackPublication,
+    Participant,
+};
 
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'ws://localhost:7880';
 
@@ -24,6 +38,19 @@ export interface VoiceChannelState {
     isDeafened: boolean;
     isVideoOn: boolean;
     isScreenSharing: boolean;
+    screenShares: ScreenShareInfo[];
+    audioInputs: MediaDeviceInfo[];
+    audioOutputs: MediaDeviceInfo[];
+    selectedAudioInput: string;
+    selectedAudioOutput: string;
+    connectionState: ConnectionState;
+}
+
+export interface ScreenShareInfo {
+    participantId: string;
+    participantName: string;
+    track: MediaStreamTrack;
+
 }
 
 class LiveKitClient {
@@ -39,9 +66,52 @@ class LiveKitClient {
         isDeafened: false,
         isVideoOn: false,
         isScreenSharing: false,
+        screenShares: [],
+        audioInputs: [],
+        audioOutputs: [],
+        selectedAudioInput: '',
+        selectedAudioOutput: '',
+        connectionState: ConnectionState.Disconnected,
     };
 
-    async connect(token: string, channelId: string): Promise<void> {
+    constructor() {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+            this.loadDevices();
+            navigator.mediaDevices.ondevicechange = () => this.loadDevices();
+        }
+    }
+
+    private async loadDevices() {
+        try {
+            // Request permission first to get labels
+            // Note: This might need to be triggered by user action in some browsers initially
+            // But if we are already in a call, we have permissions.
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+
+            this.updateState({ audioInputs, audioOutputs });
+        } catch (error) {
+            console.error('Failed to load devices', error);
+        }
+    }
+
+    async switchAudioInput(deviceId: string) {
+        this.updateState({ selectedAudioInput: deviceId });
+        if (this.room && this.room.state === ConnectionState.Connected) {
+            await this.room.switchActiveDevice('audioinput', deviceId);
+        }
+    }
+
+    async switchAudioOutput(deviceId: string) {
+        this.updateState({ selectedAudioOutput: deviceId });
+        if (this.room) {
+            await this.room.switchActiveDevice('audiooutput', deviceId);
+        }
+    }
+
+
+    async connect(token: string, _channelId: string): Promise<void> {
         if (this.room) {
             await this.disconnect();
         }
@@ -59,8 +129,8 @@ class LiveKitClient {
                 publishDefaults: {
                     simulcast: true,
                     videoSimulcastLayers: [
-                        { width: 180, height: 180, encoding: { maxBitrate: 150_000 } },
-                        { width: 360, height: 360, encoding: { maxBitrate: 500_000 } },
+                        { width: 180, height: 180, resolution: { width: 180, height: 180, frameRate: 15 }, encoding: { maxBitrate: 150_000 } },
+                        { width: 360, height: 360, resolution: { width: 360, height: 360, frameRate: 30 }, encoding: { maxBitrate: 500_000 } },
                     ],
                     audioPreset: {
                         maxBitrate: 32_000, // 32 kbps for voice
@@ -127,7 +197,8 @@ class LiveKitClient {
         this.room.remoteParticipants.forEach((participant) => {
             participant.audioTrackPublications.forEach((pub) => {
                 if (pub.track) {
-                    pub.track.setEnabled(!newDeafenedState);
+                    const audioTrack = pub.track as RemoteAudioTrack;
+                    audioTrack.setVolume(newDeafenedState ? 0 : 1);
                 }
             });
         });
@@ -172,13 +243,47 @@ class LiveKitClient {
     private setupEventListeners(): void {
         if (!this.room) return;
 
-        this.room.on(RoomEvent.ParticipantConnected, (participant) => {
+        this.room.on(RoomEvent.ParticipantConnected, () => {
             this.updateState({
                 participants: Array.from(this.room!.remoteParticipants.values()),
             });
         });
 
-        this.room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+        this.room.on(RoomEvent.TrackMuted, () => {
+            this.emitParticipantUpdate();
+        });
+
+        this.room.on(RoomEvent.TrackUnmuted, () => {
+            this.emitParticipantUpdate();
+        });
+
+        this.room.on(RoomEvent.ActiveSpeakersChanged, () => {
+            this.emitParticipantUpdate();
+        });
+
+        this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            if (track.source === Track.Source.ScreenShare && track.kind === "video") {
+                const newShare: ScreenShareInfo = {
+                    participantId: participant.identity,
+                    participantName: participant.identity,
+                    track: track.mediaStreamTrack,
+                };
+                this.updateState({
+                    screenShares: [...this.state.screenShares, newShare]
+                });
+            }
+        });
+
+        this.room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+            if (track.source === Track.Source.ScreenShare) {
+                this.updateState({
+                    screenShares: this.state.screenShares.filter(s => s.participantId !== participant.identity)
+                });
+            }
+        });
+
+
+        this.room.on(RoomEvent.ParticipantDisconnected, () => {
             this.updateState({
                 participants: Array.from(this.room!.remoteParticipants.values()),
             });
@@ -192,9 +297,17 @@ class LiveKitClient {
         });
 
         this.room.on(RoomEvent.ConnectionStateChanged, (state) => {
+            this.updateState({ connectionState: state });
             if (state === ConnectionState.Disconnected) {
                 this.updateState({ connected: false });
             }
+        });
+    }
+    private emitParticipantUpdate() {
+        if (!this.room) return;
+        this.updateState({
+            participants: Array.from(this.room.remoteParticipants.values()),
+            localParticipant: this.room.localParticipant
         });
     }
 }

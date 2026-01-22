@@ -1,18 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-    Room,
-    RoomEvent,
-    Track,
-    ConnectionState,
-    createLocalAudioTrack,
-    createLocalVideoTrack,
-    LocalAudioTrack,
-} from 'livekit-client';
+import { livekit, Track, ConnectionState } from '@echorift/sdk';
 import { useAppStore, type Thread } from '../store';
 import { Avatar } from './Avatar';
 
-// LiveKit server config
-const LIVEKIT_URL = 'ws://localhost:7880';
+// LiveKit token server config
 const TOKEN_SERVER = 'http://localhost:3001';
 
 // Icons
@@ -127,13 +118,6 @@ function VideoTrack({ track, style }: VideoTrackProps) {
     );
 }
 
-// Screen Share info
-interface ScreenShareInfo {
-    participantId: string;
-    participantName: string;
-    track: MediaStreamTrack;
-}
-
 // Device Selection Modal
 interface DeviceSelectProps {
     audioInputs: MediaDeviceInfo[];
@@ -242,55 +226,62 @@ function DeviceSelectModal({
     );
 }
 
-interface ParticipantInfo {
-    identity: string;
-    isSpeaking: boolean;
-    isMuted: boolean;
-    audioLevel: number;
-}
-
 interface VoiceRoomProps {
     thread: Thread;
     onLeave: () => void;
 }
 
 export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
-    const { voiceState, setVoiceState, user } = useAppStore();
-    const roomRef = useRef<Room | null>(null);
-    const audioAnalyserRef = useRef<AnalyserNode | null>(null);
-
-    const [connectionState, setConnectionState] = useState<ConnectionState>(ConnectionState.Disconnected);
-    const [participants, setParticipants] = useState<ParticipantInfo[]>([]);
+    const { setVoiceState, user } = useAppStore();
+    const [lkState, setLkState] = useState(livekit.getState());
     const [error, setError] = useState<string | null>(null);
     const [localAudioLevel, setLocalAudioLevel] = useState(0);
+    const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+    const frameRef = useRef<number>();
 
-    // Device selection
     const [showDeviceSelect, setShowDeviceSelect] = useState(false);
-    const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
-    const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
-    const [selectedInput, setSelectedInput] = useState('');
-    const [selectedOutput, setSelectedOutput] = useState('');
 
-    // Screen sharing
-    const [screenShares, setScreenShares] = useState<ScreenShareInfo[]>([]);
-
-    // Load available devices
+    // Subscribe to SDK state updates
     useEffect(() => {
-        const loadDevices = async () => {
-            try {
-                // Request permission first
-                await navigator.mediaDevices.getUserMedia({ audio: true });
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                setAudioInputs(devices.filter(d => d.kind === 'audioinput'));
-                setAudioOutputs(devices.filter(d => d.kind === 'audiooutput'));
-            } catch (err) {
-                console.error('Failed to enumerate devices:', err);
+        const unsubscribe = livekit.subscribe((state) => {
+            setLkState(state);
+            let status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error' = 'disconnected';
+            switch (state.connectionState) {
+                case ConnectionState.Connected: status = 'connected'; break;
+                case ConnectionState.Connecting: status = 'connecting'; break;
+                case ConnectionState.Reconnecting: status = 'reconnecting'; break;
+                case ConnectionState.Disconnected: status = 'disconnected'; break;
             }
-        };
-        loadDevices();
-    }, []);
 
-    // Fetch token from server
+            console.log('[VoiceRoom] LiveKit State Update:', { connectionState: state.connectionState, status });
+
+            // Generate list of active streamers
+            const streamers: string[] = [];
+            state.screenShares.forEach(s => {
+                if (s.participantName) streamers.push(s.participantName);
+                else if (s.participantId) streamers.push(s.participantId);
+            });
+
+            // Add self if sharing
+            if (state.isScreenSharing && user?.name) {
+                streamers.push(user.name);
+            }
+
+            // Sync with global store for other components to see status
+            setVoiceState({
+                status,
+                muted: state.isMuted,
+                deafened: state.isDeafened,
+                screenSharing: state.isScreenSharing,
+                streamingParticipants: {
+                    [thread.id]: streamers
+                }
+            });
+        });
+        return unsubscribe;
+    }, [setVoiceState]);
+
+    // Token fetching logic
     const getToken = useCallback(async (identity: string, room: string) => {
         const res = await fetch(`${TOKEN_SERVER}/token?identity=${encodeURIComponent(identity)}&room=${encodeURIComponent(room)}`);
         if (!res.ok) throw new Error('Failed to get token');
@@ -298,153 +289,62 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
         return data.token;
     }, []);
 
-    // Update participants list
-    const updateParticipants = useCallback(() => {
-        const room = roomRef.current;
-        if (!room) return;
-
-        const allParticipants: ParticipantInfo[] = [];
-
-        // Local participant
-        const local = room.localParticipant;
-        allParticipants.push({
-            identity: local.identity || user?.name || 'You',
-            isSpeaking: local.isSpeaking,
-            isMuted: !local.isMicrophoneEnabled,
-            audioLevel: localAudioLevel,
-        });
-
-        // Remote participants
-        room.remoteParticipants.forEach((participant) => {
-            allParticipants.push({
-                identity: participant.identity,
-                isSpeaking: participant.isSpeaking,
-                isMuted: !participant.isMicrophoneEnabled,
-                audioLevel: participant.audioLevel,
-            });
-        });
-
-        setParticipants(allParticipants);
-    }, [user, localAudioLevel]);
-
-    // Connect to room - only reconnect when thread.id changes
+    // Connect to room
     useEffect(() => {
-        // Use refs to access latest values without adding them to deps
-        const currentUser = user;
+        let isMounted = true;
 
-        const room = new Room({
-            adaptiveStream: true,
-            dynacast: true,
-            audioCaptureDefaults: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-            },
-        });
-        roomRef.current = room;
-
-        // Update participants function that uses the room ref
-        const refreshParticipants = () => {
-            if (!roomRef.current) return;
-            const r = roomRef.current;
-
-            const allParticipants: ParticipantInfo[] = [];
-            const local = r.localParticipant;
-            allParticipants.push({
-                identity: local.identity || currentUser?.name || 'You',
-                isSpeaking: local.isSpeaking,
-                isMuted: !local.isMicrophoneEnabled,
-                audioLevel: local.audioLevel,
-            });
-
-            r.remoteParticipants.forEach((participant) => {
-                allParticipants.push({
-                    identity: participant.identity,
-                    isSpeaking: participant.isSpeaking,
-                    isMuted: !participant.isMicrophoneEnabled,
-                    audioLevel: participant.audioLevel,
-                });
-            });
-
-            setParticipants(allParticipants);
-        };
-
-        // Event handlers
-        room.on(RoomEvent.ConnectionStateChanged, (state) => {
-            setConnectionState(state);
-            setError(null);
-            if (state === ConnectionState.Connected) {
-                refreshParticipants();
-            }
-        });
-
-        room.on(RoomEvent.ParticipantConnected, refreshParticipants);
-        room.on(RoomEvent.ParticipantDisconnected, refreshParticipants);
-        room.on(RoomEvent.TrackMuted, refreshParticipants);
-        room.on(RoomEvent.TrackUnmuted, refreshParticipants);
-        room.on(RoomEvent.ActiveSpeakersChanged, refreshParticipants);
-
-        room.on(RoomEvent.LocalTrackPublished, (publication) => {
-            if (publication.track?.kind === 'audio') {
-                setupAudioAnalyser(publication.track.mediaStreamTrack);
-            }
-        });
-
-        // Handle screen share tracks from remote participants
-        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-            if (track.source === Track.Source.ScreenShare && track.kind === 'video') {
-                setScreenShares(prev => [...prev, {
-                    participantId: participant.identity,
-                    participantName: participant.identity,
-                    track: track.mediaStreamTrack,
-                }]);
-            }
-        });
-
-        room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-            if (track.source === Track.Source.ScreenShare) {
-                setScreenShares(prev => prev.filter(s => s.participantId !== participant.identity));
-            }
-        });
-
-        // Handle local screen share status
-        room.on(RoomEvent.LocalTrackUnpublished, (publication) => {
-            if (publication.source === Track.Source.ScreenShare) {
-                setVoiceState({ screenSharing: false });
-            }
-        });
-
-        // Speaking indicator update
-        const speakingInterval = setInterval(refreshParticipants, 100);
-
-        // Connect
         const connect = async () => {
             try {
-                const identity = currentUser?.name || `user-${Date.now()}`;
+                const identity = user?.name || `user-${Date.now()}`;
                 const roomName = thread.id;
+
+                // Set initial connecting status
+                setVoiceState({ status: 'connecting' });
+
                 const token = await getToken(identity, roomName);
 
-                await room.connect(LIVEKIT_URL, token);
-                await room.localParticipant.setMicrophoneEnabled(true);
-                await room.localParticipant.setCameraEnabled(false);
-            } catch (err) {
+                if (!isMounted) return;
+
+                await livekit.connect(token, roomName);
+            } catch (err: any) {
+                if (!isMounted) return;
+
+                // Ignore disconnects that happen due to cleanup/remount
+                if (err.message?.includes('Client initiated disconnect') ||
+                    err.message?.includes('cancelled')) {
+                    return;
+                }
+
                 console.error('Connection error:', err);
-                setError(err instanceof Error ? err.message : 'Connection failed');
+                const errorMessage = err instanceof Error ? err.message : 'Connection failed';
+                setError(errorMessage);
+                setVoiceState({ status: 'error', error: errorMessage });
             }
         };
 
         connect();
 
         return () => {
-            clearInterval(speakingInterval);
-            room.disconnect();
-            roomRef.current = null;
+            isMounted = false;
+            livekit.disconnect();
+            if (frameRef.current) cancelAnimationFrame(frameRef.current);
         };
-    }, [thread.id, getToken]); // Only reconnect when thread changes
+    }, [thread.id, getToken, user]);
 
-    // Set up audio analyser for visualizing local audio
+    // Local Audio Analyser
+    useEffect(() => {
+        if (!lkState.localParticipant || !lkState.connected) return;
+
+        const micPublication = lkState.localParticipant.getTrackPublication(Track.Source.Microphone);
+        if (micPublication?.track?.mediaStreamTrack) {
+            setupAudioAnalyser(micPublication.track.mediaStreamTrack);
+        }
+    }, [lkState.localParticipant, lkState.connected]);
+
     const setupAudioAnalyser = (mediaStreamTrack: MediaStreamTrack) => {
         try {
+            if (audioAnalyserRef.current) return;
+
             const audioContext = new AudioContext();
             const analyser = audioContext.createAnalyser();
             analyser.fftSize = 256;
@@ -460,7 +360,7 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                 analyser.getByteFrequencyData(dataArray);
                 const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
                 setLocalAudioLevel(average / 255);
-                requestAnimationFrame(updateLevel);
+                frameRef.current = requestAnimationFrame(updateLevel);
             };
             updateLevel();
         } catch (err) {
@@ -468,78 +368,15 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
         }
     };
 
-    // Toggle mute
-    const toggleMute = async () => {
-        const room = roomRef.current;
-        if (!room) return;
+    // Derived state for UI
+    const isConnecting = lkState.connecting;
+    const isConnected = lkState.connected;
 
-        const newMuted = !voiceState.muted;
-        await room.localParticipant.setMicrophoneEnabled(!newMuted);
-        setVoiceState({ muted: newMuted });
-        updateParticipants();
-    };
-
-    // Toggle deafen
-    const toggleDeafen = () => {
-        const newDeafened = !voiceState.deafened;
-        setVoiceState({ deafened: newDeafened });
-
-        const room = roomRef.current;
-        if (room) {
-            room.remoteParticipants.forEach((p) => {
-                p.audioTrackPublications.forEach((pub) => {
-                    if (pub.track) {
-                        pub.track.setMuted(newDeafened);
-                    }
-                });
-            });
-        }
-    };
-
-    // Screen share
-    const toggleScreenShare = async () => {
-        const room = roomRef.current;
-        if (!room) return;
-
-        try {
-            if (voiceState.screenSharing) {
-                await room.localParticipant.setScreenShareEnabled(false);
-                setVoiceState({ screenSharing: false });
-            } else {
-                await room.localParticipant.setScreenShareEnabled(true);
-                setVoiceState({ screenSharing: true });
-            }
-        } catch (err) {
-            console.error('Screen share error:', err);
-        }
-    };
-
-    // Change input device
-    const handleInputChange = async (deviceId: string) => {
-        setSelectedInput(deviceId);
-        const room = roomRef.current;
-        if (room && room.state === ConnectionState.Connected) {
-            await room.switchActiveDevice('audioinput', deviceId);
-        }
-    };
-
-    // Change output device  
-    const handleOutputChange = async (deviceId: string) => {
-        setSelectedOutput(deviceId);
-        const room = roomRef.current;
-        if (room) {
-            await room.switchActiveDevice('audiooutput', deviceId);
-        }
-    };
-
-    // Handle leave
+    // Actions
     const handleLeave = () => {
-        roomRef.current?.disconnect();
+        livekit.disconnect();
         onLeave();
     };
-
-    const isConnecting = connectionState === ConnectionState.Connecting;
-    const isConnected = connectionState === ConnectionState.Connected;
 
     return (
         <div className="chat" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -555,7 +392,7 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                 <div className="chat-header-info">
                     <div className="chat-header-name">{thread.name}</div>
                     <div className="chat-header-status" style={{ color: 'var(--text-secondary)' }}>
-                        {isConnecting ? 'Connecting...' : isConnected ? `${participants.length} connected` : 'Disconnected'}
+                        {isConnecting ? 'Connecting...' : isConnected ? `${lkState.participants.length + (lkState.localParticipant ? 1 : 0)} connected` : 'Disconnected'}
                     </div>
                 </div>
                 <div className="chat-header-actions">
@@ -582,8 +419,9 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                     ⚠️ {error} - retrying...
                 </div>
             )}
+
             {/* Screen Share Viewer */}
-            {screenShares.length > 0 && (
+            {(lkState.screenShares.length > 0 || lkState.isScreenSharing) && (
                 <div style={{
                     flex: 2,
                     padding: 16,
@@ -591,7 +429,47 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                     flexDirection: 'column',
                     gap: 12,
                 }}>
-                    {screenShares.map((share) => (
+                    {/* Local Screen Share Preview */}
+                    {lkState.isScreenSharing && lkState.localParticipant && (
+                        <div style={{
+                            flex: 1,
+                            position: 'relative',
+                            borderRadius: 'var(--radius-lg)',
+                            overflow: 'hidden',
+                            border: '2px solid var(--accent)',
+                            background: '#000',
+                        }}>
+                            <div style={{
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--text-secondary)',
+                                fontSize: 14,
+                                background: '#111'
+                            }}>
+                                You are sharing your screen
+                            </div>
+                            <div style={{
+                                position: 'absolute',
+                                bottom: 12,
+                                left: 12,
+                                background: 'rgba(0,0,0,0.7)',
+                                padding: '6px 12px',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: 13,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}>
+                                <ScreenShareIcon />
+                                You (Screen)
+                            </div>
+                        </div>
+                    )}
+
+                    {lkState.screenShares.map((share) => (
                         <div key={share.participantId} style={{
                             flex: 1,
                             position: 'relative',
@@ -622,49 +500,68 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
             )}
 
             {/* Participants Grid */}
-            <div className="voice-grid" style={{ flex: screenShares.length > 0 ? 0 : 1, minHeight: 200, padding: 24 }}>
-                {participants.map((p, i) => {
-                    const isLocal = i === 0;
-                    const level = isLocal ? localAudioLevel : p.audioLevel;
+            <div className="voice-grid" style={{
+                flex: lkState.screenShares.length > 0 ? 0 : 1,
+                minHeight: 200,
+                padding: 'var(--spacing-md)', // Use variable spacing
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', // Auto-responsive grid
+                gap: 'var(--spacing-md)',
+                alignContent: 'center'
+            }}>
+                {/* Local Participant */}
+                {lkState.localParticipant && (
+                    <div
+                        className={`voice-tile ${localAudioLevel > 0.1 ? 'speaking' : ''}`}
+                        style={{
+                            borderWidth: localAudioLevel > 0.1 ? 2 : 1,
+                            borderColor: localAudioLevel > 0.1 ? 'var(--accent)' : undefined,
+                            boxShadow: localAudioLevel > 0.1 ? '0 0 20px var(--accent-glow)' : undefined,
+                        }}
+                    >
+                        <Avatar name={user?.name || 'You'} size={80} />
+                        {!lkState.isMuted && (
+                            <div style={{ position: 'absolute', top: 12, right: 12 }}>
+                                <AudioLevelMeter level={localAudioLevel} />
+                            </div>
+                        )}
+                        <div className="voice-name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {user?.name || 'You'} (You)
+                            {lkState.isMuted && <span style={{ opacity: 0.6 }}><MicOffIcon /></span>}
+                        </div>
+                    </div>
+                )}
 
-                    return (
-                        <div
-                            key={p.identity}
-                            className={`voice-tile ${p.isSpeaking || level > 0.1 ? 'speaking' : ''}`}
-                            style={{
-                                borderWidth: p.isSpeaking || level > 0.1 ? 2 : 1,
-                                borderColor: p.isSpeaking || level > 0.1 ? 'var(--accent)' : undefined,
-                                boxShadow: p.isSpeaking || level > 0.1 ? '0 0 20px var(--accent-glow)' : undefined,
-                                transition: 'all 0.1s ease',
-                            }}
-                        >
-                            <Avatar name={p.identity} size={80} />
-
-                            {/* Audio level indicator */}
-                            {!p.isMuted && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: 12,
-                                    right: 12,
-                                }}>
-                                    <AudioLevelMeter level={level} />
-                                </div>
-                            )}
-
+                {/* Remote Participants */}
+                {lkState.participants.map((p) => (
+                    <div
+                        key={p.identity}
+                        className={`voice-tile ${p.isSpeaking ? 'speaking' : ''}`}
+                        style={{
+                            borderWidth: p.isSpeaking ? 2 : 1,
+                            borderColor: p.isSpeaking ? 'var(--accent)' : undefined,
+                            boxShadow: p.isSpeaking ? '0 0 20px var(--accent-glow)' : undefined,
+                        }}
+                    >
+                        <Avatar name={p.identity} size={80} />
+                        {!p.isMicrophoneEnabled && (
                             <div className="voice-name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 {p.identity}
-                                {p.isMuted && (
-                                    <span style={{ opacity: 0.6, display: 'flex' }}>
-                                        <MicOffIcon />
-                                    </span>
-                                )}
-                                {isLocal && <span style={{ fontSize: 11, opacity: 0.6 }}>(You)</span>}
+                                <span style={{ opacity: 0.6 }}><MicOffIcon /></span>
                             </div>
-                        </div>
-                    );
-                })}
+                        )}
+                        {p.isMicrophoneEnabled && (
+                            <div className="voice-name">
+                                {p.identity}
+                            </div>
+                        )}
+                        {/* Note: AudioLevelMeter for remotes would require pulling audioLevel from p.audioLevel 
+                            and forcing re-renders, or SDK emitting updates. SDK emits updates on active speakers. 
+                            We simply use p.isSpeaking style for now. */}
+                    </div>
+                ))}
 
-                {participants.length === 0 && (
+                {lkState.participants.length === 0 && !lkState.localParticipant && (
                     <div className="voice-tile" style={{ opacity: 0.5 }}>
                         <div style={{ color: 'var(--text-secondary)' }}>
                             {isConnecting ? 'Connecting...' : 'No participants'}
@@ -677,38 +574,41 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
             <div className="voice-bar" style={{
                 display: 'flex',
                 justifyContent: 'center',
+                flexWrap: 'wrap', // Allow wrapping on small screens
                 gap: 12,
-                padding: 20,
+                padding: '16px 12px', // Reduce padding on mobile
                 borderTop: '1px solid var(--border-subtle)',
                 background: 'var(--bg-elevated)',
+                width: '100%',
+                boxSizing: 'border-box'
             }}>
                 <button
-                    className={`voice-btn ${voiceState.muted ? 'active' : ''}`}
-                    onClick={toggleMute}
-                    title={voiceState.muted ? 'Unmute' : 'Mute'}
+                    className={`voice-btn ${lkState.isMuted ? 'active' : ''}`}
+                    onClick={() => livekit.toggleMute()}
+                    title={lkState.isMuted ? 'Unmute' : 'Mute'}
                     style={{
                         width: 48,
                         height: 48,
                         borderRadius: '50%',
-                        background: voiceState.muted ? 'var(--status-busy)' : 'var(--bg-hover)',
+                        background: lkState.isMuted ? 'var(--status-busy)' : 'var(--bg-hover)',
                         color: 'var(--text-primary)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                     }}
                 >
-                    {voiceState.muted ? <MicOffIcon /> : <MicIcon />}
+                    {lkState.isMuted ? <MicOffIcon /> : <MicIcon />}
                 </button>
 
                 <button
-                    className={`voice-btn ${voiceState.deafened ? 'active' : ''}`}
-                    onClick={toggleDeafen}
-                    title={voiceState.deafened ? 'Undeafen' : 'Deafen'}
+                    className={`voice-btn ${lkState.isDeafened ? 'active' : ''}`}
+                    onClick={() => livekit.toggleDeafen()}
+                    title={lkState.isDeafened ? 'Undeafen' : 'Deafen'}
                     style={{
                         width: 48,
                         height: 48,
                         borderRadius: '50%',
-                        background: voiceState.deafened ? 'var(--status-busy)' : 'var(--bg-hover)',
+                        background: lkState.isDeafened ? 'var(--status-busy)' : 'var(--bg-hover)',
                         color: 'var(--text-primary)',
                         display: 'flex',
                         alignItems: 'center',
@@ -719,14 +619,14 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                 </button>
 
                 <button
-                    onClick={toggleScreenShare}
-                    title={voiceState.screenSharing ? 'Stop sharing' : 'Share screen'}
+                    onClick={() => livekit.toggleScreenShare()}
+                    title={lkState.isScreenSharing ? 'Stop sharing' : 'Share screen'}
                     style={{
                         width: 48,
                         height: 48,
                         borderRadius: '50%',
-                        background: voiceState.screenSharing ? 'var(--accent)' : 'var(--bg-hover)',
-                        color: voiceState.screenSharing ? 'white' : 'var(--text-primary)',
+                        background: lkState.isScreenSharing ? 'var(--accent)' : 'var(--bg-hover)',
+                        color: lkState.isScreenSharing ? 'white' : 'var(--text-primary)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -756,12 +656,12 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
             {/* Device Selection Modal */}
             {showDeviceSelect && (
                 <DeviceSelectModal
-                    audioInputs={audioInputs}
-                    audioOutputs={audioOutputs}
-                    selectedInput={selectedInput}
-                    selectedOutput={selectedOutput}
-                    onInputChange={handleInputChange}
-                    onOutputChange={handleOutputChange}
+                    audioInputs={lkState.audioInputs}
+                    audioOutputs={lkState.audioOutputs}
+                    selectedInput={lkState.selectedAudioInput}
+                    selectedOutput={lkState.selectedAudioOutput}
+                    onInputChange={(id) => livekit.switchAudioInput(id)}
+                    onOutputChange={(id) => livekit.switchAudioOutput(id)}
                     onClose={() => setShowDeviceSelect(false)}
                 />
             )}
