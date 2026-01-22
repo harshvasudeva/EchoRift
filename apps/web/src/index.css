@@ -368,6 +368,8 @@ textarea {
   flex-direction: column;
   background: var(--bg-base);
   min-width: 0;
+  height: 100%;
+  /* Ensure it fills the container */
 }
 
 .chat-header {

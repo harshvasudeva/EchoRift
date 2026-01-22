@@ -5,6 +5,7 @@ import { ThreadList } from './components/ThreadList';
 import { ChatView } from './components/ChatView';
 import { VoiceRoom } from './components/VoiceRoom';
 import { EmptyState } from './components/EmptyState';
+import { UserListSidebar } from './components/UserListSidebar';
 
 function App() {
   const { theme } = useThemeStore();
@@ -67,31 +68,35 @@ function App() {
       {/* Main Content Area */}
       <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
 
-        {/* Chat View - Rendered when active thread is NOT the voice room (or valid text channel) */}
-        {activeThread && (!isInVoiceCall || activeThread.id !== voiceState.threadId) && (
-          <div style={{ width: '100%', height: '100%' }}>
-            <ChatView thread={activeThread} />
-          </div>
-        )}
+        {/* Content Wrapper (Chat/Voice) */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Chat View */}
+          {activeThread && (!isInVoiceCall || activeThread.id !== voiceState.threadId) && (
+            <div style={{ flex: 1, width: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <ChatView thread={activeThread} />
+            </div>
+          )}
 
-        {/* Empty State - Rendered when no thread selected */}
-        {!activeThread && !isInVoiceCall && <EmptyState />}
+          {/* Empty State */}
+          {!activeThread && !isInVoiceCall && <EmptyState />}
 
-        {/* Voice Room - Always mounted when active to persist connection */}
-        {isInVoiceCall && voiceThread && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 10,
-            background: 'var(--bg-primary)',
-            // Hide if we are viewing another thread (minimized mode)
-            // In a real app we might show a mini player here or in sidebar
-            visibility: (activeThreadId === voiceState.threadId) ? 'visible' : 'hidden',
-            pointerEvents: (activeThreadId === voiceState.threadId) ? 'auto' : 'none'
-          }}>
-            <VoiceRoom thread={voiceThread} onLeave={handleLeaveVoice} />
-          </div>
-        )}
+          {/* Voice Room */}
+          {isInVoiceCall && voiceThread && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 10,
+              background: 'var(--bg-primary)',
+              visibility: (activeThreadId === voiceState.threadId) ? 'visible' : 'hidden',
+              pointerEvents: (activeThreadId === voiceState.threadId) ? 'auto' : 'none'
+            }}>
+              <VoiceRoom thread={voiceThread} onLeave={handleLeaveVoice} />
+            </div>
+          )}
+        </div>
+
+        {/* Right Sidebar - User List */}
+        <UserListSidebar />
       </div>
     </div>
   );

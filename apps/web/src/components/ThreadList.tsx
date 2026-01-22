@@ -64,11 +64,59 @@ export function ThreadList({ onJoinVoice }: ThreadListProps) {
             </div>
 
             <div className="sidebar-content">
-                {threads.map((thread) => {
-                    const isActive = thread.isVoice
-                        ? voiceState.threadId === thread.id
+                {/* Channels Section */}
+                <div style={{ padding: '16px 8px 4px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Channels
+                </div>
+                {threads.filter(t => t.type === 'channel' || t.isVoice).map((thread) => {
+                    const isActive = voiceState.threadId === thread.id && thread.isVoice
+                        ? false // Don't mark as active in list if it's the connected voice (unless we are viewing it? logic overlap)
                         : activeThreadId === thread.id;
 
+                    // Actually, if we are connected to voice, we might want to show it as active if we are viewing it.
+                    // But if we are viewing text, voice is background.
+
+                    const isSelected = activeThreadId === thread.id;
+
+                    return (
+                        <div
+                            key={thread.id}
+                            className={`thread-item ${isSelected ? 'active' : ''}`}
+                            onClick={() => handleThreadClick(thread)}
+                            style={{ marginBottom: 2 }}
+                        >
+                            <div className="thread-avatar" style={{ width: 24, justifyContent: 'flex-start' }}>
+                                {thread.isVoice ? <VoiceIcon /> : <span style={{ fontSize: 20, color: 'var(--text-secondary)' }}>#</span>}
+                            </div>
+                            <div className="thread-info">
+                                <div className="thread-name" style={{ color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                    {thread.name}
+                                </div>
+                            </div>
+                            {voiceState.streamingParticipants?.[thread.id]?.length > 0 && (
+                                <span style={{
+                                    background: '#ED4245',
+                                    color: 'white',
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    padding: '1px 4px',
+                                    borderRadius: '4px',
+                                    marginLeft: 'auto',
+                                    marginRight: '8px'
+                                }}>
+                                    LIVE
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
+
+                {/* Direct Messages Section */}
+                <div style={{ padding: '16px 8px 4px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', marginTop: 12 }}>
+                    Direct Messages
+                </div>
+                {threads.filter(t => t.type === 'direct' || t.type === 'group').map((thread) => {
+                    const isActive = activeThreadId === thread.id;
                     return (
                         <div
                             key={thread.id}
@@ -76,69 +124,74 @@ export function ThreadList({ onJoinVoice }: ThreadListProps) {
                             onClick={() => handleThreadClick(thread)}
                         >
                             <div className="thread-avatar">
-                                {thread.isVoice ? (
-                                    <div style={{
-                                        width: 40,
-                                        height: 40,
-                                        borderRadius: '50%',
-                                        background: voiceState.threadId === thread.id
-                                            ? 'var(--status-online)'
-                                            : 'var(--bg-hover)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: voiceState.threadId === thread.id ? 'white' : 'var(--text-secondary)',
-                                    }}>
-                                        <VoiceIcon />
-                                    </div>
-                                ) : (
-                                    <Avatar
-                                        name={thread.name}
-                                        size={40}
-                                        status={thread.participants[0]?.status}
-                                    />
-                                )}
+                                <Avatar
+                                    name={thread.name}
+                                    size={32}
+                                    status={thread.participants[0]?.status}
+                                />
                             </div>
                             <div className="thread-info">
                                 <div className="thread-name">{thread.name}</div>
                                 <div className="thread-preview">
-                                    {thread.isVoice
-                                        ? (voiceState.threadId === thread.id ? 'Connected' : 'Voice channel')
-                                        : (thread.lastMessage?.content || 'No messages yet')
-                                    }
+                                    {thread.lastMessage?.content || 'No messages yet'}
                                 </div>
                             </div>
                             <div className="thread-meta">
-                                {!thread.isVoice && (
-                                    <span className="thread-time">
-                                        {formatTime(thread.lastMessage?.timestamp)}
-                                    </span>
-                                )}
+                                <span className="thread-time">
+                                    {formatTime(thread.lastMessage?.timestamp)}
+                                </span>
                                 {thread.unreadCount > 0 && (
                                     <span className="thread-badge">{thread.unreadCount}</span>
-                                )}
-                                {thread.isVoice && thread.participants.length > 0 && (
-                                    <span style={{
-                                        fontSize: '11px',
-                                        color: 'var(--text-muted)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                    }}>
-                                        <span style={{
-                                            width: 6,
-                                            height: 6,
-                                            borderRadius: '50%',
-                                            background: 'var(--status-online)',
-                                        }} />
-                                        {thread.participants.length}
-                                    </span>
                                 )}
                             </div>
                         </div>
                     );
                 })}
             </div>
+
+            {/* Voice Status Banner */}
+            {voiceState.active && (
+                <div
+                    onClick={() => voiceState.threadId && onJoinVoice?.(voiceState.threadId)}
+                    style={{
+                        background: 'var(--bg-elevated)',
+                        padding: '8px',
+                        borderTop: '1px solid var(--border-subtle)',
+                        cursor: 'pointer',
+                        marginTop: 'auto'
+                    }}
+                >
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '4px 8px',
+                    }}>
+                        <div style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: voiceState.status === 'connected' ? 'var(--status-online)' :
+                                voiceState.status === 'error' ? 'var(--status-busy)' :
+                                    'var(--status-away)',
+                        }} />
+                        <div style={{ flex: 1 }}>
+                            <div style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: voiceState.status === 'connected' ? 'var(--status-online)' :
+                                    voiceState.status === 'error' ? 'var(--status-busy)' :
+                                        'var(--status-away)'
+                            }}>
+                                {voiceState.status === 'connected' ? 'Voice Connected' : 'Connecting...'}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                Click to Return
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {user && (
                 <div className="sidebar-footer">

@@ -99,7 +99,11 @@ export function ChatView({ thread }: ChatViewProps) {
                 <Avatar name={thread.name} size={36} status={thread.participants[0]?.status} />
                 <div className="chat-header-info">
                     <div className="chat-header-name">{thread.name}</div>
-                    <div className="chat-header-status">Active now</div>
+                    <div className="chat-header-status">
+                        {thread.type === 'channel' || thread.type === 'group'
+                            ? `${thread.participants?.length || 0} members`
+                            : thread.participants[0]?.status === 'online' ? 'Active now' : 'Offline'}
+                    </div>
                 </div>
                 <div className="chat-header-actions">
                     <button className="header-btn" title="Voice call">
@@ -120,17 +124,54 @@ export function ChatView({ thread }: ChatViewProps) {
                     <span>Today</span>
                 </div>
 
-                {threadMessages.map((msg) => (
-                    <div key={msg.id} className={`message ${msg.isOwn ? 'outgoing' : ''}`}>
-                        {!msg.isOwn && (
-                            <Avatar name={msg.sender?.name || 'User'} size={32} />
-                        )}
-                        <div className="message-bubble">
-                            <div className="message-text">{msg.content}</div>
-                            <div className="message-time">{formatTime(msg.timestamp)}</div>
+                {threadMessages.map((msg, index) => {
+                    const isChannel = thread.type === 'channel';
+                    const showAvatar = isChannel || !msg.isOwn; // Channels always show avatar (Discord style), DMs only other person
+
+                    if (isChannel) {
+                        // Discord/RocketChat Style for Channels
+                        return (
+                            <div key={msg.id} className="message-row" style={{
+                                padding: '4px 16px',
+                                display: 'flex',
+                                gap: '16px',
+                                marginTop: '4px',
+                                width: '100%',
+                                boxSizing: 'border-box'
+                            }}>
+                                <div style={{ marginTop: 2 }}>
+                                    <Avatar name={msg.sender?.name || 'User'} size={40} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                            {msg.sender?.name || 'User'}
+                                        </span>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                            {formatTime(msg.timestamp)}
+                                        </span>
+                                    </div>
+                                    <div style={{ color: 'var(--text-normal)', fontSize: '15px', lineHeight: '1.4', marginTop: '2px' }}>
+                                        {msg.content}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    // Bubble Style for DMs
+                    return (
+                        <div key={msg.id} className={`message ${msg.isOwn ? 'outgoing' : ''}`}>
+                            {!msg.isOwn && (
+                                <Avatar name={msg.sender?.name || 'User'} size={32} />
+                            )}
+                            <div className="message-bubble">
+                                <div className="message-text">{msg.content}</div>
+                                <div className="message-time">{formatTime(msg.timestamp)}</div>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 <div ref={messagesEndRef} />
             </div>
 
