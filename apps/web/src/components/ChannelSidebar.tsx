@@ -239,13 +239,13 @@ export function ChannelSidebar({
             {user && (
                 <div className="user-panel">
                     <Avatar
-                        src={user.avatarUrl}
-                        alt={user.displayName}
-                        size="sm"
+                        src={user.avatar}
+                        name={user.name}
+                        size={32}
                         status={user.status}
                     />
                     <div className="user-panel-info">
-                        <div className="user-panel-name">{user.displayName}</div>
+                        <div className="user-panel-name">{user.name}</div>
                         <div className="user-panel-status">Online</div>
                     </div>
                     <div className="user-panel-controls">

@@ -16,6 +16,26 @@ export interface Workspace {
     icon?: string;
 }
 
+export interface Server {
+    id: string;
+    name: string;
+    icon?: string;
+}
+
+export interface ServerMember {
+    user: User;
+    serverId: string;
+    role: 'owner' | 'admin' | 'moderator' | 'member';
+    joinedAt: Date;
+}
+
+export interface Channel {
+    id: string;
+    name: string;
+    type: 'text' | 'voice' | 'video' | 'category';
+    parentId?: string;
+}
+
 export interface Thread {
     id: string;
     type: 'direct' | 'group' | 'channel';
@@ -45,7 +65,8 @@ export interface VoiceState {
     videoOn: boolean;
     screenSharing: boolean;
     error?: string;
-    streamingParticipants: Record<string, string[]>; // threadId -> list of identity names
+    streamingParticipants: Record<string, string[]>; // threadId -> list of streaming identity names
+    connectedParticipants: Record<string, { id: string; name: string; streaming: boolean }[]>; // threadId -> list of connected users
 }
 
 // Theme Store
@@ -92,6 +113,9 @@ interface AppState {
 
     sidebarCollapsed: boolean;
     toggleSidebar: () => void;
+
+    showMemberList: boolean;
+    toggleMemberList: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -128,6 +152,7 @@ export const useAppStore = create<AppState>((set) => ({
         videoOn: false,
         screenSharing: false,
         streamingParticipants: {},
+        connectedParticipants: {},
     },
     setVoiceState: (updates) => set((state) => ({
         voiceState: { ...state.voiceState, ...updates },
@@ -135,6 +160,9 @@ export const useAppStore = create<AppState>((set) => ({
 
     sidebarCollapsed: false,
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+    showMemberList: true,
+    toggleMemberList: () => set((state) => ({ showMemberList: !state.showMemberList })),
 }));
 
 // Mock Data
@@ -157,6 +185,22 @@ export const MOCK_USERS: User[] = [
     { id: '3', name: 'Marcus Johnson', email: 'marcus@company.com', status: 'away' },
     { id: '4', name: 'Elena Rodriguez', email: 'elena@company.com', status: 'busy' },
     { id: '5', name: 'David Park', email: 'david@company.com', status: 'offline' },
+];
+
+export const MOCK_SERVERS: Server[] = [
+    { id: 's1', name: 'EchoRift Community', icon: 'E' },
+    { id: 's2', name: 'Gaming Hub', icon: 'G' },
+];
+
+export const MOCK_SERVER_MEMBERS: ServerMember[] = [
+    { user: MOCK_USERS[0], serverId: 's1', role: 'owner', joinedAt: new Date('2025-01-01') },
+    { user: MOCK_USERS[1], serverId: 's1', role: 'admin', joinedAt: new Date('2025-01-05') },
+    { user: MOCK_USERS[2], serverId: 's1', role: 'moderator', joinedAt: new Date('2025-01-10') },
+    { user: MOCK_USERS[3], serverId: 's1', role: 'member', joinedAt: new Date('2025-01-15') },
+    { user: MOCK_USERS[4], serverId: 's1', role: 'member', joinedAt: new Date('2025-01-20') },
+    { user: MOCK_USERS[0], serverId: 's2', role: 'member', joinedAt: new Date('2025-02-01') },
+    { user: MOCK_USERS[2], serverId: 's2', role: 'owner', joinedAt: new Date('2025-01-01') },
+    { user: MOCK_USERS[4], serverId: 's2', role: 'admin', joinedAt: new Date('2025-01-10') },
 ];
 
 export const MOCK_THREADS: Thread[] = [

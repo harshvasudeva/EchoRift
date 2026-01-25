@@ -87,7 +87,7 @@ export function MessageInput({
 }: MessageInputProps) {
     const [value, setValue] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const typingTimeoutRef = useRef<NodeJS.Timeout>();
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Auto-resize textarea
     useEffect(() => {

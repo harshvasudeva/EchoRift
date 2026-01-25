@@ -59,11 +59,11 @@ export function ChatArea({ channel }: ChatAreaProps) {
 
         const newMessage: Message = {
             id: `m${Date.now()}`,
-            channelId: channel.id,
-            authorId: user.id,
-            author: user,
+            threadId: channel.id,
+            senderId: user.id,
+            sender: user,
             content,
-            createdAt: new Date(),
+            timestamp: new Date(),
         };
 
         addMessage(channel.id, newMessage);
@@ -146,15 +146,15 @@ export function ChatArea({ channel }: ChatAreaProps) {
                     channelMessages.map((message, index) => {
                         const prevMessage = channelMessages[index - 1];
                         const isGrouped = prevMessage &&
-                            prevMessage.authorId === message.authorId &&
-                            (new Date(message.createdAt).getTime() - new Date(prevMessage.createdAt).getTime()) < 300000;
+                            prevMessage.senderId === message.senderId &&
+                            (new Date(message.timestamp).getTime() - new Date(prevMessage.timestamp).getTime()) < 300000;
 
                         return (
                             <div key={message.id} className={`message ${isGrouped ? 'grouped' : ''}`}>
                                 {!isGrouped && (
                                     <Avatar
-                                        src={message.author?.avatarUrl}
-                                        alt={message.author?.displayName || 'User'}
+                                        src={message.sender?.avatar}
+                                        alt={message.sender?.name || 'User'}
                                         size="md"
                                     />
                                 )}
@@ -162,8 +162,8 @@ export function ChatArea({ channel }: ChatAreaProps) {
                                 <div className="message-content-wrapper">
                                     {!isGrouped && (
                                         <div className="message-header">
-                                            <span className="message-author">{message.author?.displayName || 'Unknown User'}</span>
-                                            <span className="message-timestamp">{formatTimestamp(new Date(message.createdAt))}</span>
+                                            <span className="message-author">{message.sender?.name || 'Unknown User'}</span>
+                                            <span className="message-timestamp">{formatTimestamp(new Date(message.timestamp))}</span>
                                         </div>
                                     )}
                                     <div className="message-content">{message.content}</div>

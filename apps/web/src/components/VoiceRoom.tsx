@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { livekit, Track, ConnectionState } from '@echorift/sdk';
 import { useAppStore, type Thread } from '../store';
 import { Avatar } from './Avatar';
@@ -267,6 +267,28 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                 streamers.push(user.name);
             }
 
+            // Build connected participants list
+            const connectedList: { id: string; name: string; streaming: boolean }[] = [];
+
+            // Add remote participants
+            state.participants.forEach(p => {
+                const isStreaming = (p.name && streamers.includes(p.name)) || streamers.includes(p.identity);
+                connectedList.push({
+                    id: p.identity,
+                    name: p.name || p.identity,
+                    streaming: isStreaming
+                });
+            });
+
+            // Add local user if connected
+            if (status === 'connected' && user) {
+                connectedList.push({
+                    id: user.id,
+                    name: user.name,
+                    streaming: state.isScreenSharing
+                });
+            }
+
             // Sync with global store for other components to see status
             setVoiceState({
                 status,
@@ -275,6 +297,9 @@ export function VoiceRoom({ thread, onLeave }: VoiceRoomProps) {
                 screenSharing: state.isScreenSharing,
                 streamingParticipants: {
                     [thread.id]: streamers
+                },
+                connectedParticipants: {
+                    [thread.id]: connectedList
                 }
             });
         });

@@ -70,44 +70,98 @@ export function ThreadList({ onJoinVoice }: ThreadListProps) {
                 </div>
                 {threads.filter(t => t.type === 'channel' || t.isVoice).map((thread) => {
                     const isActive = voiceState.threadId === thread.id && thread.isVoice
-                        ? false // Don't mark as active in list if it's the connected voice (unless we are viewing it? logic overlap)
+                        ? false
                         : activeThreadId === thread.id;
-
-                    // Actually, if we are connected to voice, we might want to show it as active if we are viewing it.
-                    // But if we are viewing text, voice is background.
-
                     const isSelected = activeThreadId === thread.id;
+                    const connectedUsers = voiceState.connectedParticipants?.[thread.id] || [];
 
                     return (
-                        <div
-                            key={thread.id}
-                            className={`thread-item ${isSelected ? 'active' : ''}`}
-                            onClick={() => handleThreadClick(thread)}
-                            style={{ marginBottom: 2 }}
-                        >
-                            <div className="thread-avatar" style={{ width: 24, justifyContent: 'flex-start' }}>
-                                {thread.isVoice ? <VoiceIcon /> : <span style={{ fontSize: 20, color: 'var(--text-secondary)' }}>#</span>}
-                            </div>
-                            <div className="thread-info">
-                                <div className="thread-name" style={{ color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                                    {thread.name}
+                        <React.Fragment key={thread.id}>
+                            <div
+                                className={`thread-item ${isSelected ? 'active' : ''}`}
+                                onClick={() => handleThreadClick(thread)}
+                                style={{ marginBottom: connectedUsers.length > 0 ? 0 : 2 }}
+                            >
+                                <div className="thread-avatar" style={{ width: 24, justifyContent: 'flex-start' }}>
+                                    {thread.isVoice ? <VoiceIcon /> : <span style={{ fontSize: 20, color: 'var(--text-secondary)' }}>#</span>}
                                 </div>
+                                <div className="thread-info">
+                                    <div className="thread-name" style={{ color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                        {thread.name}
+                                    </div>
+                                </div>
+                                {voiceState.streamingParticipants?.[thread.id]?.length > 0 && (
+                                    <span style={{
+                                        background: '#ED4245',
+                                        color: 'white',
+                                        fontSize: '10px',
+                                        fontWeight: 700,
+                                        padding: '1px 4px',
+                                        borderRadius: '4px',
+                                        marginLeft: 'auto',
+                                        marginRight: '8px'
+                                    }}>
+                                        LIVE
+                                    </span>
+                                )}
+                                {thread.isVoice && connectedUsers.length > 0 && (
+                                    <span style={{
+                                        fontSize: '11px',
+                                        color: 'var(--text-muted)',
+                                        marginLeft: 'auto',
+                                        marginRight: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}>
+                                        <span style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: '50%',
+                                            background: 'var(--status-online)',
+                                        }} />
+                                        {connectedUsers.length}
+                                    </span>
+                                )}
                             </div>
-                            {voiceState.streamingParticipants?.[thread.id]?.length > 0 && (
-                                <span style={{
-                                    background: '#ED4245',
-                                    color: 'white',
-                                    fontSize: '10px',
-                                    fontWeight: 700,
-                                    padding: '1px 4px',
-                                    borderRadius: '4px',
-                                    marginLeft: 'auto',
-                                    marginRight: '8px'
-                                }}>
-                                    LIVE
-                                </span>
+
+                            {/* Connected Participants (Discord Style) */}
+                            {thread.isVoice && connectedUsers.length > 0 && (
+                                <div style={{ paddingLeft: 40, paddingBottom: 8 }}>
+                                    {connectedUsers.map((participant) => (
+                                        <div
+                                            key={participant.id}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                padding: '4px 8px',
+                                                fontSize: '13px',
+                                                color: 'var(--text-secondary)',
+                                                cursor: 'default'
+                                            }}
+                                        >
+                                            <Avatar name={participant.name} size={20} />
+                                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {participant.name}
+                                            </span>
+                                            {participant.streaming && (
+                                                <span style={{
+                                                    background: '#ED4245',
+                                                    color: 'white',
+                                                    fontSize: '9px',
+                                                    fontWeight: 700,
+                                                    padding: '1px 3px',
+                                                    borderRadius: '3px',
+                                                }}>
+                                                    LIVE
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             )}
-                        </div>
+                        </React.Fragment>
                     );
                 })}
 
