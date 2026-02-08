@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { livekit, Track, ConnectionState } from '@echorift/sdk';
 import { useAppStore, type Thread } from '../store';
@@ -81,7 +82,7 @@ function AudioLevelMeter({ level }: { level: number }) {
 // Video Track component for screen sharing
 interface VideoTrackProps {
     track: MediaStreamTrack;
-    style?: React.CSSProperties;
+    style?: CSSProperties;
 }
 
 function VideoTrack({ track, style }: VideoTrackProps) {

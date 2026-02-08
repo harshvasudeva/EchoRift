@@ -261,7 +261,7 @@ class LiveKitClient {
             this.emitParticipantUpdate();
         });
 
-        this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        this.room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
             if (track.source === Track.Source.ScreenShare && track.kind === "video") {
                 const newShare: ScreenShareInfo = {
                     participantId: participant.identity,
@@ -274,7 +274,7 @@ class LiveKitClient {
             }
         });
 
-        this.room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+        this.room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
             if (track.source === Track.Source.ScreenShare) {
                 this.updateState({
                     screenShares: this.state.screenShares.filter(s => s.participantId !== participant.identity)

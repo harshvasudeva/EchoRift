@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore, type Channel, type Message } from '../store';
 import { Avatar } from './Avatar';
 
@@ -70,7 +71,7 @@ export function ChatArea({ channel }: ChatAreaProps) {
         setInputValue('');
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
@@ -154,8 +155,8 @@ export function ChatArea({ channel }: ChatAreaProps) {
                                 {!isGrouped && (
                                     <Avatar
                                         src={message.sender?.avatar}
-                                        alt={message.sender?.name || 'User'}
-                                        size="md"
+                                        name={message.sender?.name || 'User'}
+                                        size={40}
                                     />
                                 )}
                                 {isGrouped && <div style={{ width: '40px' }} />}

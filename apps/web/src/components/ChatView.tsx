@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore, type Thread } from '../store';
 import { Avatar } from './Avatar';
 
@@ -81,7 +82,7 @@ export function ChatView({ thread }: ChatViewProps) {
         setInput('');
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
@@ -124,9 +125,8 @@ export function ChatView({ thread }: ChatViewProps) {
                     <span>Today</span>
                 </div>
 
-                {threadMessages.map((msg, index) => {
+                {threadMessages.map((msg) => {
                     const isChannel = thread.type === 'channel';
-                    const showAvatar = isChannel || !msg.isOwn; // Channels always show avatar (Discord style), DMs only other person
 
                     if (isChannel) {
                         // Discord/RocketChat Style for Channels
