@@ -1,5 +1,5 @@
-import React from 'react';
-import { useThemeStore, useAppStore } from '../store';
+import { useState } from 'react';
+import { useThemeStore } from '../store';
 
 // Icons
 const MessagesIcon = () => (
@@ -50,7 +50,7 @@ const MoonIcon = () => (
 
 export function NavSidebar() {
     const { theme, toggleTheme } = useThemeStore();
-    const [activeNav, setActiveNav] = React.useState('messages');
+    const [activeNav, setActiveNav] = useState('messages');
 
     return (
         <nav className="nav-sidebar">

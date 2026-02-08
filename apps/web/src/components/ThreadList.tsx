@@ -1,4 +1,4 @@
-import React from 'react';
+import { Fragment } from 'react';
 import { useAppStore, type Thread } from '../store';
 import { Avatar } from './Avatar';
 
@@ -69,14 +69,11 @@ export function ThreadList({ onJoinVoice }: ThreadListProps) {
                     Channels
                 </div>
                 {threads.filter(t => t.type === 'channel' || t.isVoice).map((thread) => {
-                    const isActive = voiceState.threadId === thread.id && thread.isVoice
-                        ? false
-                        : activeThreadId === thread.id;
                     const isSelected = activeThreadId === thread.id;
                     const connectedUsers = voiceState.connectedParticipants?.[thread.id] || [];
 
                     return (
-                        <React.Fragment key={thread.id}>
+                        <Fragment key={thread.id}>
                             <div
                                 className={`thread-item ${isSelected ? 'active' : ''}`}
                                 onClick={() => handleThreadClick(thread)}
@@ -161,7 +158,7 @@ export function ThreadList({ onJoinVoice }: ThreadListProps) {
                                     ))}
                                 </div>
                             )}
-                        </React.Fragment>
+                        </Fragment>
                     );
                 })}
 

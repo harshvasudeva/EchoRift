@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useAppStore, useThemeStore, MOCK_USER, MOCK_WORKSPACES, MOCK_THREADS, MOCK_MESSAGES } from './store';
 import { NavSidebar } from './components/NavSidebar';
 import { ThreadList } from './components/ThreadList';

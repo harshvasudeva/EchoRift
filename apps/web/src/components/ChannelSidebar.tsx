@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, Fragment } from 'react';
 import type { Server, Channel, User } from '../store';
 import { Avatar } from './Avatar';
 import { useAppStore } from '../store';
@@ -93,7 +93,6 @@ export function ChannelSidebar({
     const renderChannel = (channel: Channel) => {
         const isActive = channel.id === activeChannelId;
         const isHovered = hoveredChannel === channel.id;
-        const isVoice = channel.type === 'voice' || channel.type === 'video';
 
         return (
             <div
@@ -163,7 +162,7 @@ export function ChannelSidebar({
                     );
 
                     return (
-                        <React.Fragment key={category.id}>
+                        <Fragment key={category.id}>
                             <div
                                 style={{
                                     padding: '16px 8px 4px 8px',
@@ -183,7 +182,7 @@ export function ChannelSidebar({
                                 <span>{category.name}</span>
                             </div>
                             {!isCollapsed && childChannels.map(renderChannel)}
-                        </React.Fragment>
+                        </Fragment>
                     );
                 })}
             </div>
